@@ -163,6 +163,43 @@ def test_rejects_escaping_or_missing_manifest_assets(
     build(source, "openai", tmp_path / "output")
 
 
+@pytest.mark.parametrize("agents", [
+    "./.claude-plugin/agents/style.md", ["./.claude-plugin/agents/style.md"],
+])
+def test_claude_agent_reference_forms(
+    source: Path, tmp_path: Path, agents: str | list[str],
+) -> None:
+  path = source / ".claude-plugin/plugin.json"
+  manifest = json.loads(path.read_text())
+  manifest["agents"] = agents
+  path.write_text(json.dumps(manifest))
+  folder, archive = build(source, "claude", tmp_path / "output")
+  reference = ".claude-plugin/agents/style.md"
+  assert (folder / reference).read_bytes() == (source / reference).read_bytes()
+  assert (folder / ".claude-plugin/plugin.json").read_bytes() == path.read_bytes()
+  with zipfile.ZipFile(archive) as bundle:
+    assert bundle.read(reference) == (source / reference).read_bytes()
+    assert bundle.read(".claude-plugin/plugin.json") == path.read_bytes()
+    assert json.loads(bundle.read(".claude-plugin/plugin.json"))["agents"] == agents
+
+
+@pytest.mark.parametrize("reference", [
+    "./.claude-plugin/agents/missing.md", "../escape.md", "/tmp/agent.md",
+])
+def test_rejects_escaping_or_missing_scalar_agent_references(
+    source: Path, tmp_path: Path, reference: str,
+) -> None:
+  path = source / ".claude-plugin/plugin.json"
+  manifest = json.loads(path.read_text())
+  manifest["agents"] = reference
+  path.write_text(json.dumps(manifest))
+  output = tmp_path / "output"
+  with pytest.raises(ValueError) as error:
+    build(source, "claude", output)
+  assert str(error.value) == f"Unbundled manifest reference: {reference}"
+  assert not output.exists()
+
+
 @pytest.mark.parametrize("key", ["composerIcon", "logo"])
 def test_rejects_missing_openai_interface_icons(
     source: Path, tmp_path: Path, key: str,

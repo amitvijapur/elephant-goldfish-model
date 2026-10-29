@@ -84,7 +84,8 @@ def build(root: Path, target: str, output: Path) -> tuple[Path, Path]:
   for metadata in (manifest, portable, openai):
     if any(metadata.get(key) for key in ("mcpServers", "mcp", "apps")):
       raise ValueError("This runtime builder does not package MCP or app dependencies")
-  references = list(manifest.get("agents", []))
+  agents = manifest.get("agents", [])
+  references = [agents] if isinstance(agents, str) else list(agents)
   interface = openai.get("interface", {})
   if target == "openai":
     interface = interface or manifest.get("interface", {})
