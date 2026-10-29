@@ -180,7 +180,26 @@ def test_claude_agent_reference_forms(
   with zipfile.ZipFile(archive) as bundle:
     assert bundle.read(reference) == (source / reference).read_bytes()
     assert bundle.read(".claude-plugin/plugin.json") == path.read_bytes()
-    assert json.loads(bundle.read(".claude-plugin/plugin.json"))["agents"] == agents
+
+
+@pytest.mark.parametrize("target,directory", [
+    ("claude", ".claude-plugin"), ("openai", ".codex-plugin"),
+])
+@pytest.mark.parametrize("agents", [
+    None, 5, True, {}, {"./agents/style.md": None}, 1.5,
+])
+def test_rejects_invalid_manifest_agents(
+    source: Path, tmp_path: Path, target: str, directory: str, agents: object,
+) -> None:
+  path = source / directory / "plugin.json"
+  manifest = json.loads(path.read_text())
+  manifest["agents"] = agents
+  path.write_text(json.dumps(manifest))
+  output = tmp_path / "output"
+  with pytest.raises(ValueError) as error:
+    build(source, target, output)
+  assert str(error.value) == f"Invalid manifest agents: {agents!r}"
+  assert not output.exists()
 
 
 @pytest.mark.parametrize("reference", [
